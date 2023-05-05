@@ -2,6 +2,8 @@ from generator_block import Generator_block
 from CustomGenerator import CustomGenerator
 from CustomDiscriminator import CustomDiscriminator
 from BCEWithLogitsLoss import BCEWithLogitsLoss
+from AdamOptimizer import SimpleAdamOptimizer
+
 import numpy as np
 import torch
 
@@ -190,6 +192,34 @@ def test_bce_with_logits_loss():
     
     print("All BCEWithLogitsLoss tests pass.")
 
+
+def test_simple_adam_optimizer():
+    # Dummy parameters (PyTorch tensors)
+    param1 = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    param2 = torch.tensor([10.0, 20.0], requires_grad=True)
+
+    # Dummy gradients (PyTorch tensors)
+    grad1 = torch.tensor([[-0.1, -0.2], [-0.3, -0.4]])
+    grad2 = torch.tensor([-1.0, -2.0])
+
+    # Initialize the optimizer
+    optimizer = SimpleAdamOptimizer([param1, param2], lr=0.001)
+
+    # Check the initial parameter values
+    assert torch.allclose(param1, torch.tensor([[1.0, 2.0], [3.0, 4.0]]))
+    assert torch.allclose(param2, torch.tensor([10.0, 20.0]))
+
+    # Perform an optimization step
+    optimizer.step([grad1, grad2])
+
+    # Check if the parameters have been updated
+    assert not torch.allclose(param1, torch.tensor([[1.0, 2.0], [3.0, 4.0]]))
+    assert not torch.allclose(param2, torch.tensor([10.0, 20.0]))
+
+    # Print a message indicating that the test has passed
+    print("All SimpleAdamOptimizer tests pass.")
+
+
 test_forward_discriminator()
 test_custom_discriminator()
 test_gen_block()
@@ -198,4 +228,4 @@ test_get_dense_block()
 test_forward()
 test_custom_generator()
 test_bce_with_logits_loss()
-
+test_simple_adam_optimizer()
