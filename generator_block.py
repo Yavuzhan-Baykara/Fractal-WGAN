@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class Generator_bloc:
+class Generator_block:
     def __init__(self, input_dim, output_dim):
         self.input_dim = input_dim
         self.output_dim = output_dim
