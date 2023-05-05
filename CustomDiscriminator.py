@@ -18,8 +18,8 @@ class CustomDiscriminator:
         return layers
 
     def get_dense_block(self, input_dim, output_dim, activation):
-        weight = torch.randn(output_dim, input_dim) * 0.02
-        bias = torch.zeros(output_dim)
+        weight = torch.randn(output_dim, input_dim, requires_grad=True) * 0.02
+        bias = torch.zeros(output_dim, requires_grad=True)
         block = [('linear', weight, bias)]
         if activation == 'relu':
             block.append(('relu',))

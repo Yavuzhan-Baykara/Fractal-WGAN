@@ -11,16 +11,17 @@ class SimpleAdamOptimizer:
         self.ms = [torch.zeros_like(param) for param in self.params]
         self.vs = [torch.zeros_like(param) for param in self.params]
 
-    def step(self, grads):
+    def step(self):
         self.t += 1
         for i, param in enumerate(self.params):
-            grad = grads[i]
+            grad = param
+            if grad is None:
+                continue
             m, v = self.ms[i], self.vs[i]
     
             # Update biased first and second moment estimates
             m.mul_(self.beta1).add_(grad, alpha=1 - self.beta1)
             v.mul_(self.beta2).addcmul_(grad, grad, value=1 - self.beta2)
-    
             # Compute bias-corrected first and second moment estimates
             m_hat = m.div(1 - self.beta1 ** self.t)
             v_hat = v.div(1 - self.beta2 ** self.t)
@@ -30,3 +31,8 @@ class SimpleAdamOptimizer:
             with torch.no_grad():
                 param += param_update
                 param.grad = None
+
+    def zero_grad(self):
+        for param in self.params:
+            if param.grad is not None:
+                param.grad.zero_()
