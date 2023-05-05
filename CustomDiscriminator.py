@@ -37,3 +37,16 @@ class CustomDiscriminator:
             elif layer[0] == 'leakyrelu':
                 x = torch.clamp(x, min=0) + 0.01 * torch.clamp(x, max=0)
         return x
+    def to(self, device):
+        for i, layer in enumerate(self.layers):
+            if layer[0] == 'linear':
+                weight, bias = layer[1], layer[2]
+                self.layers[i] = ('linear', weight.to(device), bias.to(device))
+    def parameters(self):
+        params = []
+        for layer in self.layers:
+            if layer[0] == 'linear':
+                weight, bias = layer[1], layer[2]
+                params.append(weight)
+                params.append(bias)
+        return params
