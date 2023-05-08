@@ -28,7 +28,7 @@ def show_tensor_images(image_tensor, num_images=25, size=(1, 28, 28)):
 def train(n_epochs, dataloader, device, lr, z_dim, display_step):
     general = CustomGenerator(z_dim, 784, [128, 256, 512])
     generator = general.to(device)
-    discrimin = CustomDiscriminator(784, [512, 256, 128], "relu")
+    discrimin = CustomDiscriminator(784, [512, 256, 128], "leakyrelu")
     discriminator = discrimin.to(device)
     criterion = BCEWithLogitsLoss()
     gen_optimizer = SimpleAdamOptimizer(general.parameters(), lr=lr)
