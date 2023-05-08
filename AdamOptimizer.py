@@ -14,9 +14,11 @@ class SimpleAdamOptimizer:
     def step(self):
         self.t += 1
         for i, param in enumerate(self.params):
-            grad = param
-            if grad is None:
+            gradf = param.grad
+            if gradf is None:
                 continue
+            else:
+                grad = param.grad(is_leaf=True)
             m, v = self.ms[i], self.vs[i]
     
             # Update biased first and second moment estimates

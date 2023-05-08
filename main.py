@@ -15,6 +15,16 @@ from AdamOptimizer import SimpleAdamOptimizer
 
 os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
 
+def show_tensor_images(image_tensor, num_images=25, size=(1, 28, 28)):
+    '''
+    Function for visualizing images: Given a tensor of images, number of images, and
+    size per image, plots and prints the images in a uniform grid.
+    '''
+    image_unflat = image_tensor.detach().cpu().view(-1, *size)
+    image_grid = make_grid(image_unflat[:num_images], nrow=5)
+    plt.imshow(image_grid.permute(1, 2, 0).squeeze())
+    plt.show()
+
 def train(n_epochs, dataloader, device, lr, z_dim, display_step):
     general = CustomGenerator(z_dim, 784, [128, 256, 512])
     generator = general.to(device)
@@ -43,12 +53,13 @@ def train(n_epochs, dataloader, device, lr, z_dim, display_step):
             gen_fake = discrimin.forward(fake.view(batch_size, -1))
             gen_loss = criterion(gen_fake, torch.ones_like(gen_fake))
             gen_optimizer.zero_grad()
-            gen_loss.backward()  # Make sure gradients are computed for generator loss
+            gen_loss.backward(retain_graph=True)  # Make sure gradients are computed for generator loss
             gen_optimizer.step()
     
             if i % display_step == 0:
                 print(f"Epoch [{epoch}/{n_epochs}], Step [{i}/{len(dataloader)}], Gen Loss: {gen_loss.item()}, Disc Loss: {disc_loss.item()}")
-
+                show_tensor_images(real, num_images=25, size=(1, 28, 28))
+                show_tensor_images(fake, num_images=25, size=(1, 28, 28))
 
 if __name__ == "__main__":
     criterion = BCEWithLogitsLoss()
@@ -56,7 +67,7 @@ if __name__ == "__main__":
     z_dim = 64
     display_step = 500
     batch_size = 128
-    lr = 0.00001
+    lr = 0.0001
     device = 'cuda'
     dataloader = DataLoader(
         MNIST('.', download=False, transform=transforms.ToTensor()),
