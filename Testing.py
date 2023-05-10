@@ -1,126 +1,240 @@
-from generator_block import Generator_block
-from CustomGenerator import CustomGenerator
-import numpy as np
+from generator_block import GeneratorBlock
+from CustomGenerator import Generator
+from CustomDiscriminator import Discriminator
+from Noise import GenerateNoise
+from AdversialLoss import AdversialLoss
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torchvision.datasets import MNIST
+import torchvision.transforms as transforms
 
-def test_gen_block(in_features, out_features, num_test=1000):
-    # Create an instance of the Generator_block class
-    Genblock = Generator_block(in_features, out_features)
+
+def test_Generator_block(input_dim=None, output_dim=None, hidden_dims=None):
+    if input_dim is None:
+        input_dim = 25
+    if output_dim is None:
+        output_dim = 12
+    if hidden_dims is None:
+        hidden_dims = ["linear", (input_dim, output_dim), "batchnorm", (output_dim), "relu"]
     
-    # Loop through the specified number of tests
-    for i in range(num_test):
-        # Get a generator block from the instance of Generator_block
-        gen_block = Genblock.get_generator_block()
+    gen = GeneratorBlock(hidden_dims=hidden_dims)
+    generator_block = gen.get_generator_block(input_dim=input_dim, output_dim=output_dim)
+    
+    # Check the three parts of the generator block
+    assert len(generator_block) == 3
+    assert type(generator_block[0]) == nn.Linear
+    assert type(generator_block[1]) == nn.BatchNorm1d
+    assert type(generator_block[2]) == nn.ReLU
+    
+    # Check the output shape of the generator block
+    test_input = torch.randn(1000, input_dim)
+    test_output = generator_block(test_input)
+    assert tuple(test_output.shape) == (1000, output_dim)
+    assert test_output.std() > 0.55
+    assert test_output.std() < 0.65
+    print("Test Generator block is *Success*")
+    
+def test_disc_block(in_features=None, out_features=None, num_test=10000):
+    if in_features is None:
+        in_features = 25
+    if out_features is None:
+        out_features = 12
+    
+    hidden_dims = ["linear", (in_features, out_features), "leakyrelu"]
+    disc_block = GeneratorBlock(hidden_dims).get_generator_block(in_features, out_features)
+
+    # Check there are two parts
+    assert len(disc_block) == 2
+    
+    # Check the output shape
+    test_input = torch.randn(num_test, in_features)
+    test_output = disc_block(test_input)
+    assert tuple(test_output.shape) == (num_test, out_features)
+    
+    # Check the LeakyReLU slope and output statistics
+    assert -test_output.min() / test_output.max() > 0.1
+    assert -test_output.min() / test_output.max() < 0.3
+    assert test_output.std() > 0.3
+    assert test_output.std() < 0.5
+    
+    # Check the correct layer ordering
+    assert str(disc_block.__getitem__(0)).replace(' ', '') == f'Linear(in_features={in_features},out_features={out_features},bias=True)'        
+    assert str(disc_block.__getitem__(1)).replace(' ', '').replace(',inplace=True', '') == 'LeakyReLU(negative_slope=0.2)'
+    print("Test Discriminator block is *Success*")
+
+
+    
+def test_generator(z_dim, im_dim, hidden_dim, num_test=10000):
+    # Create the generator
+    gen = Generator(z_dim=z_dim, im_dim=im_dim, hidden_dim=hidden_dim).get_gen()
+    
+    # Check there are six modules in the sequential part
+    assert len(gen) == 6
+    
+    # Check that the fourth module is a linear layer with the correct shape
+    assert str(gen.__getitem__(4)).replace(' ', '') == f'Linear(in_features={hidden_dim * 8},out_features={im_dim},bias=True)'
+    
+    # Check that the fifth module is a sigmoid function
+    assert str(gen.__getitem__(5)).replace(' ', '') == 'Sigmoid()'
+    
+    # Check the output shape of the generator
+    test_input = torch.randn(num_test, z_dim)
+    test_output = gen(test_input)
+    assert tuple(test_output.shape) == (num_test, im_dim)
+    
+    # Check the range and variance of the generator output
+    assert test_output.max() < 1, "Make sure to use a sigmoid"
+    assert test_output.min() > 0, "Make sure to use a sigmoid"
+    assert test_output.std() > 0.05, "Don't use batchnorm here"
+    assert test_output.std() < 0.15, "Don't use batchnorm here"
+    print("Test Generator  is *Success*")
+    
+def test_discriminator(im_dim, hidden_dim, num_test=100):
+    
+    disc = Discriminator(im_dim, hidden_dim).get_gen()
+
+    # Check there are three parts
+    assert len(disc) == 4
+    assert type(disc.__getitem__(3)) == nn.Linear
+
+    # Check the linear layer is correct
+    test_input = torch.randn(num_test, im_dim)
+    test_output = disc(test_input)
+    assert tuple(test_output.shape) == (num_test, 1)
+    print("Test Discriminator is *Success*")
+
+
+def test_get_noise(n_samples, z_dim, device='cpu'):
+    # Create a noise generator
+    noise_gen = GenerateNoise()
+    
+    # Get the noise
+    noise = noise_gen.get_noise(n_samples, z_dim, device)
+    
+    # Check the noise shape and distribution
+    assert tuple(noise.shape) == (n_samples, z_dim)
+    assert torch.abs(noise.std() - torch.tensor(1.0)) < 0.01
+    assert str(noise.device).startswith(device)
+    print("Test Generator Noise is *Success*")
+    
+def test_disc_reasonable(num_images=10):
+    z_dim = 64
+    gen = torch.zeros_like
+    disc = nn.Identity()
+    criterion = torch.mul # Multiply
+    real = torch.ones(num_images, 1)
+    Adversialloss = AdversialLoss(gen, disc, criterion, num_images, z_dim, 'cpu')
+    disc_loss = Adversialloss.get_disc_loss(real)
+    assert tuple(disc_loss.shape) == (num_images, z_dim)
+    assert torch.all(torch.abs(disc_loss - 0.5) < 1e-5)
+
+    gen = torch.ones_like
+    disc = nn.Identity()
+    criterion = torch.mul # Multiply
+    real = torch.zeros(num_images, 1)
+    assert torch.all(torch.abs(Adversialloss.get_disc_loss(real)) < 1e-5)
+    print("Test_disc_reasonable is *Success*")
+
+def test_disc_loss(max_test=10):
+    criterion = nn.BCEWithLogitsLoss()
+    n_epochs = 20
+    z_dim = 64
+    display_step = 50
+    batch_size = 32
+    lr = 0.00001
+    device = 'cpu'
+    dataloader = DataLoader(
+        MNIST('.', download=False, transform=transforms.ToTensor()),
+        batch_size=batch_size,
+        shuffle=True)
+    
+    gen = Generator(z_dim).to(device)
+    gen_opt = torch.optim.Adam(gen.parameters(), lr=lr)
+    disc = Discriminator().to(device)
+    disc_opt = torch.optim.Adam(disc.parameters(), lr=lr)
+    num_step = 0
+    for real, _ in dataloader:
+        cur_batch_size = len(real)
+        real = real.view(cur_batch_size, -1).to(device)
+        disc_opt.zero_grad()
+        Adversialloss = AdversialLoss(gen, disc, criterion, cur_batch_size, z_dim, device)
+        disc_loss = Adversialloss.get_disc_loss(real)
+        assert (disc_loss - 0.68).abs() < 0.05
+        disc_loss.backward(retain_graph=True)
+        assert gen.gen[0][0].weight.grad is None
+        old_weight = disc.disc[0][0].weight.data.clone()
+        disc_opt.step()
+        new_weight = disc.disc[0][0].weight.data
         
-        # Test that the generator block contains three parts
-        assert len(gen_block) == 3, "The generator block should contain three parts."
+        assert not torch.all(torch.eq(old_weight, new_weight))
         
-        # Test the first part of the generator block, which should be a linear layer
-        linear_layer = gen_block[0]
-        assert linear_layer[0] == 'linear', "The first part of the generator block should be a linear layer."
-        assert linear_layer[1].shape == (out_features, in_features), "The shape of the weight matrix in the linear layer is incorrect."
-        assert linear_layer[2].shape == (out_features,), "The shape of the bias vector in the linear layer is incorrect."
-        
-        # Test the second part of the generator block, which should be a batch normalization layer
-        batchnorm_layer = gen_block[1]
-        assert batchnorm_layer[0] == 'batchnorm', "The second part of the generator block should be a batch normalization layer."
-        assert batchnorm_layer[1] == out_features, "The number of features in the batch normalization layer is incorrect."
-        
-        # Test the third part of the generator block, which should be a ReLU activation function
-        relu_layer = gen_block[2]
-        assert relu_layer[0] == 'relu', "The third part of the generator block should be a ReLU activation function."
+        num_step += 1
+        if num_step >=max_test:
+            break
+    print("test_disc_loss is *Success*")
     
-    # Print a message indicating that all tests have passed
-    print("All generator block tests pass.")
-
-
-
-
-def test_get_dense_block(input_dim, output_dim, activation):
-    gen = CustomGenerator(input_dim, output_dim, [])
-
-    # Call the get_dense_block method
-    block = gen.get_dense_block(input_dim, output_dim, activation)
-
-    # Check that the output is a list with length 1 or 2
-    assert isinstance(block, list) and len(block) in [1, 2]
-
-    # Check that the first element of the output is a tuple
-    assert isinstance(block[0], tuple)
-
-    # Check that the tuple has the correct length
-    assert len(block[0]) == 3
-
-    # Check that the first element of the tuple is a string
-    assert isinstance(block[0][0], str)
-
-    # Check that the second and third elements of the tuple are ndarrays with the correct shape
-    assert block[0][1].shape == (output_dim, input_dim)
-    assert block[0][2].shape == (output_dim,)
-
-    # If activation is 'relu', check that the second element of the output is a tuple with the string 'relu'
-    if activation == 'relu':
-        assert len(block) == 2
-        assert isinstance(block[1], tuple)
-        assert block[1][0] == 'relu'
+def test_gen_reasonable(num_images=50):
+    z_dim = 64
+    gen = torch.zeros_like
+    disc = nn.Identity()
+    criterion = torch.mul # Multiply
+    Adversialloss = AdversialLoss(gen, disc, criterion, num_images, z_dim, 'cpu')
+    gen_loss_tensor = Adversialloss.get_gen_loss()
+    assert torch.all(torch.abs(gen_loss_tensor) < 1e-5)
+    assert tuple(gen_loss_tensor.shape) == (num_images, z_dim)
     
-    # If activation is 'sigmoid', check that the second element of the output is a tuple with the string 'sigmoid'
-    elif activation == 'sigmoid':
-        assert len(block) == 2
-        assert isinstance(block[1], tuple)
-        assert block[1][0] == 'sigmoid'
+    gen = torch.ones_like
+    disc = nn.Identity()
+    criterion = torch.mul # Multiply
+    Adversialloss = AdversialLoss(gen, disc, criterion, num_images, z_dim, 'cpu')
+    gen_loss_tensor = Adversialloss.get_gen_loss()
+    assert torch.all(torch.abs(gen_loss_tensor - 1) < 1e-5)
+    assert tuple(gen_loss_tensor.shape) == (num_images, z_dim)
+    print("Test_gen_reasonable is *Success*")
 
-    print("get_dense_block test passed!")
-
-def test_forward():
-    # Define the input and output dimensions and hidden dimensions for the generator
-    input_dim = 10
-    output_dim = 5
-    hidden_dims = [32, 64, 128]
-
-    # Create an instance of the CustomGenerator class
-    gen = CustomGenerator(input_dim, output_dim, hidden_dims)
+def test_gen_loss(num_images=10):
+    criterion = nn.BCEWithLogitsLoss()
+    n_epochs = 20
+    z_dim = 64
+    display_step = 50
+    batch_size = 32
+    lr = 0.00001
+    device = 'cpu'
+    dataloader = DataLoader(
+        MNIST('.', download=False, transform=transforms.ToTensor()),
+        batch_size=batch_size,
+        shuffle=True)
     
-    # Generate random input for testing
-    test_input = np.random.randn(100, input_dim)
+    gen = Generator(z_dim).to(device=device)
+    gen_opt = torch.optim.Adam(gen.parameters(), lr=lr)
+    disc = Discriminator().to(device=device)
+    disc_opt = torch.optim.Adam(disc.parameters(), lr=lr)
     
-    # Call the forward method of the generator with the test input
-    test_output = gen.forward(test_input)
-
-    # Test that the output has the correct shape
-    assert test_output.shape == (100, output_dim), "The output shape is incorrect."
+    Adversialloss = AdversialLoss(gen, disc, criterion, num_images, z_dim, 'cpu')
+    gen_loss = Adversialloss.get_gen_loss()
     
-    # Test that the output values are between 0 and 1 (since the generator uses a sigmoid activation)
-    assert test_output.max() <= 1, "Output values should be less than or equal to 1 for sigmoid activation."
-    assert test_output.min() >= 0, "Output values should be greater than or equal to 0 for sigmoid activation."
-
-    # Print a message indicating that all tests have passed
-    print("All forward tests pass.")
-
-
-
-
-def test_custom_generator():
-    input_dim = 10
-    output_dim = 5
-    hidden_dims = [32, 64, 128]
-
-    gen = CustomGenerator(input_dim, output_dim, hidden_dims)
-    layers = gen.layers
-
-    # Check the correct number of layers
-    assert len(layers) == 2 * len(hidden_dims) + 2, "The number of layers in the custom generator is incorrect."
-
-    # Check that the last layer is a sigmoid activation
-    assert layers[-1][0] == 'sigmoid', "The last layer should be a sigmoid activation function."
-
-    print("All custom generator tests pass.")
+    assert (gen_loss - 0.7).abs() < 0.1
+    gen_loss.backward()
+    old_weight = gen.gen[0][0].weight.clone()
+    gen_opt.step()
+    new_weight = gen.gen[0][0].weight
+    assert not torch.all(torch.eq(old_weight, new_weight))
+    print("test_gen_loss is *Success*")
 
 
 
-test_gen_block(25, 12)
-test_gen_block(15, 28)
-test_get_dense_block(15, 28, "relu")
-test_forward()
-test_custom_generator()
 
+test_get_noise(1000, 100, 'cpu')
+if torch.cuda.is_available():
+    test_get_noise(1000, 32, 'cuda')
+test_Generator_block()
+test_generator(5, 10, 20)
 
+test_discriminator(784, 128)
+test_discriminator(256, 64)
+test_disc_block(25, 12)
+test_disc_reasonable()
+test_disc_loss()
+test_gen_reasonable()
+test_gen_loss()
