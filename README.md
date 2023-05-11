@@ -1,8 +1,8 @@
-# FractalGAN 🌀
+# WGAN 🌀
 
-![FractalGAN Example](./images/fractal_example.png)
+![WGAN Example](./images/fractal_example.png)
 
-FractalGAN is a custom implementation of a Wasserstein Generative Adversarial Network (WGAN) for generating fractal images. The project uses a unique approach to build the generator and discriminator models without relying on any deep learning frameworks. It serves as an educational resource for understanding the inner workings of GANs and their training process.
+WGAN is a custom implementation of a Wasserstein Generative Adversarial Network (WGAN) for generating handwriter images. The project uses a unique approach to build the generator and discriminator models without relying on any deep learning frameworks. It serves as an educational resource for understanding the inner workings of GANs and their training process.
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -28,5 +28,5 @@ Wasserstein GAN (WGAN) is an improvement over the original GAN model, addressing
 To set up the project, clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/yourusername/FractalGAN.git
-cd FractalGAN
+git clone https://github.com/yourusername/WGAN.git
+cd WGAN
