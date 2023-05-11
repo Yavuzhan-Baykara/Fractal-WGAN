@@ -47,7 +47,8 @@ if __name__ == "__main__":
     cur_step = 0
     mean_generator_loss = 0
     mean_discriminator_loss = 0
-    
+    Adversialloss = AdversialLoss(gen=gen, disc=disc, criterion=criterion, z_dim=z_dim, device='cpu')
+    noise_gen = GenerateNoise()
     for epoch in range(n_epochs):
         for real, _ in tqdm(dataloader):
             cur_batch_size = len(real)
@@ -59,7 +60,10 @@ if __name__ == "__main__":
             disc_opt.zero_grad()
             
             #
-            Adversialloss = AdversialLoss(gen, disc, criterion, cur_batch_size, z_dim, 'cpu')
+            Adversialloss.gen = gen
+            Adversialloss.disc = disc
+            Adversialloss.criterion = criterion
+            Adversialloss.num_images = cur_batch_size
             disc_loss = Adversialloss.get_disc_loss(real)
             
             #Update Gradients
@@ -72,7 +76,10 @@ if __name__ == "__main__":
                 old_generator_weights = gen.gen[0][0].weight.detach().clone
                 
             gen_opt.zero_grad()
-            Adversialloss = AdversialLoss(gen, disc, criterion, cur_batch_size, z_dim, 'cpu')
+            Adversialloss.gen = gen
+            Adversialloss.disc = disc
+            Adversialloss.criterion = criterion
+            Adversialloss.num_images = cur_batch_size
             gen_loss = Adversialloss.get_gen_loss()
             gen_loss.backward()
             gen_opt.step()
@@ -89,10 +96,9 @@ if __name__ == "__main__":
             # Keep track of the average generator loss
             mean_generator_loss += gen_loss.item() / display_step
     
-            ### Visualization code ###
+            ### Visualization ###
             if cur_step % display_step == 0 and cur_step > 0:
                 print(f"Step {cur_step}: Generator loss: {mean_generator_loss}, discriminator loss: {mean_discriminator_loss}")
-                noise_gen = GenerateNoise()
                 fake_noise = noise_gen.get_noise(cur_batch_size, z_dim, device=device)
                 fake = gen(fake_noise)
                 show_tensor_images(fake)

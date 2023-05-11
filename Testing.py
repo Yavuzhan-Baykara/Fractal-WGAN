@@ -65,7 +65,7 @@ def test_disc_block(in_features=None, out_features=None, num_test=10000):
 
 
     
-def test_generator(z_dim, im_dim, hidden_dim, num_test=10000):
+def test_generator(z_dim=5, im_dim=10, hidden_dim=20, num_test=10000):
     # Create the generator
     gen = Generator(z_dim=z_dim, im_dim=im_dim, hidden_dim=hidden_dim).get_gen()
     
@@ -90,7 +90,7 @@ def test_generator(z_dim, im_dim, hidden_dim, num_test=10000):
     assert test_output.std() < 0.15, "Don't use batchnorm here"
     print("Test Generator  is *Success*")
     
-def test_discriminator(im_dim, hidden_dim, num_test=100):
+def test_discriminator(im_dim=256, hidden_dim=64, num_test=100):
     
     disc = Discriminator(im_dim, hidden_dim).get_gen()
 
@@ -105,7 +105,7 @@ def test_discriminator(im_dim, hidden_dim, num_test=100):
     print("Test Discriminator is *Success*")
 
 
-def test_get_noise(n_samples, z_dim, device='cpu'):
+def test_get_noise(n_samples=1000, z_dim=100, device='cpu'):
     # Create a noise generator
     noise_gen = GenerateNoise()
     
